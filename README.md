@@ -2,6 +2,8 @@
 
 ## TL;DR
 
+_Requires [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest)_
+
 `tokenhelper -c <client id> -r <resource id> -t <tenant id>`
 
 This will trigger a device code flow:
