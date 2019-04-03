@@ -1,6 +1,6 @@
 # How to use
 
-##TL;DR
+## TL;DR
 
 `tokenhelper -c <client id> -r <resource id> -t <tenant id>`
 
@@ -15,7 +15,7 @@ It will also be cached, so subsequent calls can be done like:
 
 If set, $TENANT will be used so you can omit -t <tenant id> from the command.
 
-##Auto completion
+## Auto completion
 If you want to add auto completion:
 
 `source tokenhelper_completion`
