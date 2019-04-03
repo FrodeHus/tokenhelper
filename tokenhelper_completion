@@ -1,0 +1,50 @@
+_get_app_list()
+{
+    _create_app_cache
+    apps=`cat $HOME/.appcache | jq 'keys' | grep -o '\"[[:print:]]*\"' | sed -e 's/\ /___/g' | tr -d \"`
+    for iter in $apps; do
+        COMPREPLY+=( "${iter//___/\ }" )
+    done
+}
+
+_create_app_cache()
+{
+    if [ ! -f $HOME/.appcache ]; then
+        (`az ad app list | jq 'reduce .[] as $item ({}; . + {"\($item.displayName)":$item.appId})' > $HOME/.appcache`)
+    fi
+}
+
+_get_user()
+{
+    users=`cat $HOME/.tokencache 2>/dev/null | jq 'unique_by(.userId) | .[] | .userId'`
+    COMPREPLY=( $(compgen -W "${users}" -- ${cur}) )
+}
+
+_tokenhelper() 
+{
+    local cur prev opts
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    opts="-c -r -t -h"
+    case "${prev}" in
+        -c|--client)
+            _get_app_list
+            return 0
+            ;;
+        -r|--resource)
+            _get_app_list
+            return 0
+            ;;
+        -u|--user)
+            _get_user
+            return 0
+            ;;
+        *)
+        ;;
+    esac
+    COMPREPLY=($(compgen -W "${opts}" -- ${cur}))
+    return 0
+}
+complete -F _tokenhelper tokenhelper
+complete -F _tokenhelper token

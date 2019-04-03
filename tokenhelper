@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+import adal
+import sys
+import json
+import pathlib
+import subprocess
+import os
+import getopt
+import re
+
+APPCACHEFILE = "{}/.appcache".format(pathlib.Path.home())
+CACHEFILE = "{}/.tokencache".format(pathlib.Path.home())
+DEFAULT_TENANT = os.getenv('TENANT',None)
+
+class TokenHelper(object):
+    guid_validator = re.compile('[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', re.IGNORECASE)
+
+    def __init__(self, client_id, app_id, authority):
+        self._app_id = self.get_app_id(app_id)
+        self._client_id = self.get_app_id(client_id)
+
+        self._cache = self._load_cache()
+        self._context = adal.AuthenticationContext(authority, cache=self._cache, api_version=None)
+
+    def _load_cache(self):
+        cache = adal.TokenCache()
+        file = pathlib.Path(CACHEFILE)
+        if not file.is_file():
+            return cache
+        with file.open() as data:
+            cache.deserialize(data.read())
+        return cache
+
+    def _save_cache(self):
+        if not self._cache:
+            return
+
+        cached = self._cache.serialize()
+        with open(CACHEFILE, "w") as out:
+            out.write(cached)
+
+    def get_token(self, user):
+        token = None
+        if user:
+            token = self._context.acquire_token(self._app_id, user, self._client_id)
+            if token is None:
+                print("User not found or token expired...")
+                token = self.get_token_using_device_code()
+        else:
+            token = self.get_token_using_device_code()
+        self._save_cache()
+        return token
+
+    def get_token_using_device_code(self):
+        code = self._context.acquire_user_code(self._app_id, self._client_id)
+        print(code['message'])
+        token = self._context.acquire_token_with_device_code(self._app_id, code, self._client_id)
+        return token
+
+    def get_app_id(self,value):
+        if self.guid_validator.match(value) != None:
+            return value
+        return self._get_application_id_from_cache(value)
+
+    def _load_app_cache(self):
+        cache = None
+        file = pathlib.Path(APPCACHEFILE)
+        if not file.is_file():
+           return cache
+        with file.open() as data:
+           cache = json.loads(data.read())
+        return cache
+
+    def _get_application_id_from_cache(self,name):
+        appcache = self._load_app_cache()
+        if appcache and appcache.get(name):
+            return appcache[name]
+        if not appcache:
+            appcache = {}
+        app_id = self._get_application_id(name)
+        appcache[name] = app_id
+        with open(APPCACHEFILE, "w") as out:
+            out.write(json.dumps(appcache, indent=2))
+        return app_id
+
+    def _get_application_id(self, name):
+        appId = subprocess.check_output("az ad app list --filter \"displayName eq '{}'\" | jq -r '.[] | .appId'".format(name), shell=True)
+        return appId.decode("utf-8").replace('\n','')
+
+def main():
+    tenantId = DEFAULT_TENANT
+    clientId, resourceId, user = None, None, None
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "c:r:t:u:h", ["client", "resource", "tenant", "user", "help"])
+    except:
+        print("Invalid arguments(s); try {} -h for help".format(__file__))
+    for opt,arg in opts:
+        if opt == "-c":
+            clientId = arg
+        if opt == "-r":
+            resourceId = arg
+        if opt == "-t":
+            tenantId = arg
+        if opt == "-u":
+            user = arg
+        if opt == "-h":
+            print("""Options:
+    -c <appId|displayName>\t: Client Id
+    -r <appId|displayName>\t: Resource Id
+    -u <username>\t\t: User to retrieve cached token for (optional)
+    -t <tenant>\t\t\t: Tenant Id (optional)
+    """)
+            sys.exit()
+
+    if clientId == None or resourceId == None or tenantId == None:
+        print("Missing argument(s); try {} -h for help".format(__file__))
+        sys.exit(1)
+
+    helper = TokenHelper(clientId, resourceId, "https://login.microsoftonline.com/" + tenantId)
+    token = helper.get_token(user)
+    if token is None:
+        print("Failed to retrieve token")
+        sys.exit(1)
+
+    accessToken = token["accessToken"]
+    print(accessToken)
+
+if __name__ == "__main__":
+    main()
