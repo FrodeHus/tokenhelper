@@ -27,3 +27,8 @@ Now, you should be able to do things like:
 
 This will trigger a lookup in Azure AD (requires that you are logged into Azure `az login` on the tenant specified above)
 The data will be cached in $HOME/.appcache - delete this to refresh (or if you switch tenant).
+
+## Example usage
+The handy thing of having this tool at the ready is that you do stuff like this:
+
+`tokenhelper -c <client> -r <resource> -u <user@domain.com> | xargs -I token curl -H "Authorization: Bearer token" https://myapi.com/stuff`
