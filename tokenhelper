@@ -68,7 +68,12 @@ class TokenHelper(object):
         if not file.is_file():
            return cache
         with file.open() as data:
-           cache = json.loads(data.read())
+           try:
+               cache = json.loads(data.read())
+           except json.decoder.JSONDecodeError:
+               print("Failed decoding existing appcache. Try deleting '{}' and run the application again.".format(APPCACHEFILE))
+               exit(1)
+            
         return cache
 
     def _get_application_id_from_cache(self,name):
